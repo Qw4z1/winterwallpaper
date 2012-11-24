@@ -6,56 +6,46 @@ import java.util.Comparator;
 import java.util.List;
 
 import se.kicksort.winterwallpaper.model.Tree;
-
+import android.annotation.TargetApi;
 import android.content.Context;
 import android.content.SharedPreferences;
-import android.content.SharedPreferences.OnSharedPreferenceChangeListener;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
+import android.graphics.Point;
+import android.os.Build;
 import android.os.Handler;
 import android.os.SystemClock;
+import android.preference.PreferenceManager;
 import android.service.wallpaper.WallpaperService;
 import android.view.Display;
 import android.view.MotionEvent;
 import android.view.SurfaceHolder;
 import android.view.WindowManager;
 
-public class WinterWallpaper extends WallpaperService implements
-		OnSharedPreferenceChangeListener {
+public class WinterWallpaper extends WallpaperService {
 	public static final String PREFERENCES = "se.kicksort.android.winterwallpaper";
-	
-	@Override
-	public void onCreate() {
-		super.onCreate();
-	}
-
-	@Override
-	public void onDestroy() {
-		super.onDestroy();
-	}
 
 	@Override
 	public Engine onCreateEngine() {
 		return new ForestEngine();
 	}
 
-	@Override
-	public void onSharedPreferenceChanged(SharedPreferences sharedPreferences,
-			String key) {
-		// TODO Auto-generated method stub
-
-	}
+	
+	
 
 	class ForestEngine extends Engine implements
 			SharedPreferences.OnSharedPreferenceChangeListener {
 
 		private final Handler mHandler = new Handler();
 
-		private int width = 0;
-		private int height = 0;
+		private boolean mVisible = true;
+		
+		private int mWidth;
+		private int mHeight;
+		
+		private int numberOfTrees;
 
-		private final Paint mPaint = new Paint();
 		private float mOffset;
 		private float mTouchX = -1;
 		private float mTouchY = -1;
@@ -66,22 +56,18 @@ public class WinterWallpaper extends WallpaperService implements
 		/** Trees **/
 		private List<Tree> trees = new ArrayList<Tree>();
 
-		private final Runnable mForest = new Runnable() {
+		private final Runnable runner = new Runnable() {
 			public void run() {
 				drawFrame();
 			}
 		};
-		private boolean mVisible;
-
-		ForestEngine() {
-			// Create a Paint to draw the lines for our cube
-			final Paint paint = mPaint;
-			paint.setColor(Color.rgb(54, 255, 0));
-			paint.setAntiAlias(true);
-			paint.setStrokeWidth(2);
-			paint.setStrokeCap(Paint.Cap.ROUND);
-			paint.setStyle(Paint.Style.STROKE);
-
+		
+		public ForestEngine() {
+			SharedPreferences prefs = PreferenceManager
+			          .getDefaultSharedPreferences(WinterWallpaper.this);
+			
+			numberOfTrees = Integer.valueOf(prefs.getString("numberOfTrees", "20"));
+			
 			mStartTime = SystemClock.elapsedRealtime();
 		}
 
@@ -99,16 +85,16 @@ public class WinterWallpaper extends WallpaperService implements
 		@Override
 		public void onDestroy() {
 			super.onDestroy();
-			mHandler.removeCallbacks(mForest);
+			mHandler.removeCallbacks(runner);
 		}
 
 		@Override
 		public void onVisibilityChanged(boolean visible) {
 			mVisible = visible;
 			if (visible) {
-				drawFrame();
+				mHandler.postDelayed(runner, 1000 / 15);
 			} else {
-				mHandler.removeCallbacks(mForest);
+				mHandler.removeCallbacks(runner);
 			}
 		}
 
@@ -120,9 +106,7 @@ public class WinterWallpaper extends WallpaperService implements
 			Display display = ((WindowManager) getSystemService(Context.WINDOW_SERVICE))
 					.getDefaultDisplay();
 
-			this.width = display.getWidth();
-			this.height = display.getHeight();
-
+			setScreenSize();
 			drawFrame();
 		}
 
@@ -135,7 +119,7 @@ public class WinterWallpaper extends WallpaperService implements
 		public void onSurfaceDestroyed(SurfaceHolder holder) {
 			super.onSurfaceDestroyed(holder);
 			mVisible = false;
-			mHandler.removeCallbacks(mForest);
+			mHandler.removeCallbacks(runner);
 		}
 
 		@Override
@@ -167,18 +151,19 @@ public class WinterWallpaper extends WallpaperService implements
 		private void drawFrame() {
 			final SurfaceHolder holder = getSurfaceHolder();
 			// Create the initial trees
-			if (trees.size() == 0) {
-				for (int i = 0; i < 60; i++) {
-					float yPos = this.height
-							- ((float) Math.random() * (this.height - 190));
+			if (trees.isEmpty()) {
+				for (int i = 0; i < numberOfTrees; i++) {
+					float yPos = this.mHeight
+							- ((float) Math.random() * (this.mHeight - 190));
 
-					float xPos = (float) Math.random() * this.width;
-					if (xPos > this.width) {
-						xPos = this.width - 10;
+					float xPos = (float) Math.random() * this.mWidth;
+					if (xPos > this.mWidth) {
+						xPos = this.mWidth - 10;
 					}
-					trees.add(new Tree(xPos, yPos, this.width));
+					trees.add(new Tree(xPos, yPos, this.mWidth));
 				}
 			}
+			
 			Collections.sort(trees, new Comparator<Tree>() {
 				@Override
 				public int compare(Tree tree1, Tree tree2) {
@@ -205,9 +190,9 @@ public class WinterWallpaper extends WallpaperService implements
 					holder.unlockCanvasAndPost(c);
 			}
 
-			mHandler.removeCallbacks(mForest);
+			mHandler.removeCallbacks(runner);
 			if (mVisible) {
-				mHandler.postDelayed(mForest, 1000 / 15);
+				mHandler.postDelayed(runner, 1000 / 15);
 			}
 		}
 
@@ -215,14 +200,40 @@ public class WinterWallpaper extends WallpaperService implements
 			// Draw the background
 			Paint paint = new Paint();
 			paint.setColor(Color.rgb(180, 210, 230));
-			c.drawRect(0, 0, this.width, 220, paint);
+			c.drawRect(0, 0, mWidth, mHeight/4, paint);
+			
 			paint.setColor(Color.rgb(200, 123, 26));
-			c.drawRect(0, 220, this.width, this.height, paint);
+			c.drawRect(0, mHeight/4, mWidth, mHeight, paint);
 		}
 
 		private void drawTouchPoint(Canvas c) {
 			// TODO do something cool when touched
 		}
+		
+		private void setScreenSize(){
+		    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.HONEYCOMB_MR2) {
+		        size_old(((WindowManager) getSystemService(Context.WINDOW_SERVICE)).getDefaultDisplay());
+		    }
+		    else {
+		        size_new(((WindowManager) getSystemService(Context.WINDOW_SERVICE)).getDefaultDisplay());
+		    }
+		}
+		
+		@TargetApi(Build.VERSION_CODES.HONEYCOMB_MR2)
+		private void size_new(Display display) {
+		    Point point = new Point();
+		    display.getSize(point);
+		    mHeight = point.x;
+		    mWidth = point.y;
+		}
+
+		@SuppressWarnings("deprecation")
+		private void size_old(Display display) {
+		    mHeight = display.getHeight();
+		    mWidth = display.getWidth();
+		}
+		
+		
 	}
 
 }

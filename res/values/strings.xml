@@ -3,7 +3,8 @@
     <string name="app_name">Winter Wallpaper</string>
     <string name="hello_world">Hello world!</string>
     <string name="menu_settings">Settings</string>
-    <string name="description">Displays forests</string>
+    <string name="wallpaper_settings">Settings</string>
+    <string name="description">Displays a winter forest</string>
     <string name="title_activity_winter">WinterActivity</string>
 
 </resources>
